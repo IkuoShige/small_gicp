@@ -12,6 +12,7 @@
 
 #ifdef BUILD_WITH_IRIDESCENCE
 #include <guik/viewer/async_light_viewer.hpp>
+#include <guik/viewer/light_viewer.hpp>
 #endif
 
 namespace small_gicp {
@@ -62,6 +63,17 @@ public:
 
 #ifdef BUILD_WITH_IRIDESCENCE
       if (params.visualize) {
+#ifdef __APPLE__
+        // macOS requires GUI to run on main thread, use sync viewer
+        static auto viewer = guik::viewer();
+        z_range[0] = std::min<double>(z_range[0], T.translation().z() - 5.0f);
+        z_range[1] = std::max<double>(z_range[1], T.translation().z() + 5.0f);
+        viewer->shader_setting().add("z_range", z_range);
+        viewer->update_points("current", downsampled->points, guik::FlatOrange(T).set_point_scale(2.0f));
+        viewer->update_points(guik::anon(), voxelgrid_sampling(*downsampled, 1.0)->points, guik::Rainbow(T));
+        viewer->lookat(T.translation().cast<float>());
+        viewer->spin_once();
+#else
         auto async_viewer = guik::async_viewer();
         z_range[0] = std::min<double>(z_range[0], T.translation().z() - 5.0f);
         z_range[1] = std::max<double>(z_range[1], T.translation().z() + 5.0f);
@@ -69,6 +81,7 @@ public:
         async_viewer->update_points("current", downsampled->points, guik::FlatOrange(T).set_point_scale(2.0f));
         async_viewer->update_points(guik::anon(), voxelgrid_sampling(*downsampled, 1.0)->points, guik::Rainbow(T));
         async_viewer->lookat(T.translation().cast<float>());
+#endif
       }
 #endif
 
@@ -87,6 +100,12 @@ public:
     }
 
 #ifdef BUILD_WITH_IRIDESCENCE
+#ifdef __APPLE__
+    // macOS uses sync viewer - update model points in main viewer
+    static auto viewer = guik::viewer();
+    viewer->update_points("model", points, guik::Rainbow());
+    viewer->lookat(T.translation().cast<float>());
+#else
     if (!async_sub_initialized) {
       async_sub_initialized = true;
       async_sub = guik::async_viewer()->async_sub_viewer("model");
@@ -94,6 +113,7 @@ public:
 
     async_sub.update_points("model", points, guik::Rainbow());
     async_sub.lookat(T.translation().cast<float>());
+#endif
 #endif
   }
 
